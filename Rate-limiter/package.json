@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "dev": "tsx watch app.ts",
+    "start": "tsx app.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "redis": "^6.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
