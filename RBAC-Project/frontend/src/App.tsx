@@ -11,6 +11,15 @@ function App() {
         if (savedUser) {
             setUser(JSON.parse(savedUser));
         }
+
+        // Fired by the axios interceptor when the refresh token itself is
+        // expired/invalid — drop back to the login screen.
+        const handleSessionExpired = () => {
+            setUser(null);
+            setDashboardData("");
+        };
+        window.addEventListener("auth:session-expired", handleSessionExpired);
+        return () => window.removeEventListener("auth:session-expired", handleSessionExpired);
     }, []);
 
     // Example of hitting a protected Admin route

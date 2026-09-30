@@ -2,89 +2,146 @@
     import Product from "../models/Product.js";
     import { redisClient } from "../config/redis.js";
 
+    // Router() creates routing object in Express. We use it to define and organize related routes separately from the main Express application, and then mount that router using app.use().
     const router = Router();
 
     router.get("/:id", async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        
-        // 1. Check Redis
-        // const cachedProduct = await redisClient.get(`product:${id}`);
-        const cacheKey = `product:${id}`;
+      try {
+          const { id } = req.params;
+          
+          // 1. Check Redis
+          const cacheKey = `product:${id}`;
 
-        const cachedProduct = await redisClient.get(cacheKey);
+          const cachedProduct = await redisClient.get(cacheKey);
 
-        console.log("CACHE KEY:", cacheKey);
-        console.log("CACHE VALUE:", cachedProduct);
+          // 2. Redis HIT
+          if (cachedProduct) {
+          console.log("Redis HIT");
 
-        // 2. Redis HIT
-        if (cachedProduct) {
-        console.log("Redis HIT");
+          return res.json({
+              source: "cache",
+              data: JSON.parse(cachedProduct),
+          });
+          }
 
-        return res.json({
-            source: "cache",
-            data: JSON.parse(cachedProduct),
-        });
-        }
+          // 3. Redis MISS
+          console.log("Redis MISS");
 
-        // 3. Redis MISS
-        console.log("Redis MISS");
+          // 4. Get product from MongoDB
+          const product = await Product.findById(id);
 
-        // 4. Get product from MongoDB
-        const product = await Product.findById(id);
+          if (!product) {
+            return res.status(404).json({
+                message: "Product not found",
+            });
+          }
 
-        if (!product) {
-        return res.status(404).json({
-            message: "Product not found",
-        });
-        }
+          // 5. Save product in Redis
+          await redisClient.set(
+          `product:${id}`,
+          JSON.stringify(product),
+          {
+              EX: 60, // cache for 60 seconds
+          }
+          );
 
-        // 5. Save product in Redis
-        await redisClient.set(
-        `product:${id}`,
-        JSON.stringify(product),
-        {
-            EX: 60, // cache for 60 seconds
-        }
-        );
+          // 6. Return product
+          return res.json({
+          source: "mongodb",
+          data: product,
+          });
 
-        // 6. Return product
-        return res.json({
-        source: "mongodb",
-        data: product,
-        });
+      } catch (error) {
+          console.error(error);
 
-    } catch (error) {
-        console.error(error);
-
-        return res.status(500).json({
-        message: "Internal server error",
-        });
-    }
+          return res.status(500).json({
+          message: "Internal server error",
+          });
+      }
     });
 
-    router.post("/", async (req: Request, res: Response) => {
+  router.post("/", async (req: Request, res: Response) => {
+    try {
+      const { name, price, description } = req.body;
+
+      const product = await Product.create({
+        name,
+        price,
+        description,
+      });
+
+      return res.status(201).json({
+        message: "Product created",
+        data: product,
+      });
+    } catch (error) {
+      console.error(error);
+
+      return res.status(500).json({
+        message: "Failed to create product",
+      });
+    }
+  });
+
+
+router.put("/:id", async (req: Request, res: Response) => {
   try {
+    const { id } = req.params;
     const { name, price, description } = req.body;
 
-    const product = await Product.create({
-      name,
-      price,
-      description,
-    });
+    const product = await Product.findByIdAndUpdate(
+      id,
+      { name, price, description },
+      { new: true, runValidators: true }
+    );
 
-    return res.status(201).json({
-      message: "Product created",
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    // Invalidate cache
+    await redisClient.del(`product:${id}`);
+
+    return res.json({
+      message: "Product updated",
       data: product,
     });
   } catch (error) {
     console.error(error);
 
     return res.status(500).json({
-      message: "Failed to create product",
+      message: "Failed to update product",
     });
   }
 });
 
+router.delete("/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
 
-    export default router;
+    const product = await Product.findByIdAndDelete(id);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    // Invalidate cache
+    await redisClient.del(`product:${id}`);
+
+    return res.json({
+      message: "Product deleted",
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Failed to delete product",
+    });
+  }
+});
+
+export default router;

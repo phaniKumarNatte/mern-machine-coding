@@ -1,0 +1,92 @@
+# CI for the user-management project.
+# GitHub only reads workflows from .github/workflows at the REPOSITORY ROOT,
+# so this file lives here and points into the user-management/ folder.
+name: User Management CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['user-management/**', '.github/workflows/user-management-ci.yml']
+  pull_request:
+    paths: ['user-management/**', '.github/workflows/user-management-ci.yml']
+
+jobs:
+  backend:
+    name: Backend (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user-management/backend
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: user-management/backend/package-lock.json
+
+      # Cache the mongod binary that mongodb-memory-server downloads (~80 MB)
+      # so later runs don't download it again.
+      - name: Cache MongoDB binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('user-management/backend/package-lock.json') }}
+
+      # `npm ci` installs exactly what package-lock.json says (reproducible, never updates the lockfile).
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run typecheck
+
+      # No MongoDB service is needed: integration tests start an in-memory MongoDB.
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+  frontend:
+    name: Frontend (lint, typecheck, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user-management/frontend
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: user-management/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build

@@ -1,4 +1,4 @@
-    import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
 // Optional: TypeScript interface for strict type checking
 export interface IUser extends Document {
@@ -37,4 +37,3 @@ const userSchema = new Schema(
 );
 
 export default mongoose.model<IUser>("User", userSchema);
-

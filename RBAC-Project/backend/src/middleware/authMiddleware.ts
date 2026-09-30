@@ -1,19 +1,20 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key-for-rbac";
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "super-secret-access-key-for-rbac";
 
 // Extend Express Request interface so TypeScript knows about req.user
 export interface AuthRequest extends Request {
     user?: {
         userId: string;
         role: string;
+        sessionId: string;
     };
 }
 
 // 1. AUTHENTICATION MIDDLEWARE: Verifies the JWT token
 export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
-    const token = req.cookies?.token;
+    const token = req.cookies?.accessToken;
 
     if (!token) {
         res.status(401).json({ message: "Access denied. No token provided." });
@@ -21,11 +22,13 @@ export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction)
     }
 
     try {
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+        const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as { userId: string; role: string; sessionId: string };
         req.user = decoded; // Attach user payload to the request object
         next(); // Move to the next middleware or controller
     } catch (error) {
-        res.status(403).json({ message: "Invalid or expired token." });
+        // 401 (not 403) here on purpose: an expired/invalid access token is exactly
+        // the case where the client should call /auth/refresh and retry, not give up.
+        res.status(401).json({ message: "Invalid or expired token." });
     }
 };
 

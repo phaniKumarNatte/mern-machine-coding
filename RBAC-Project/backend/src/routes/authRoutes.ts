@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { register, login, logout } from "../controllers/authController";
+import { register, login, logout, refresh, listSessions, logoutOtherSessions } from "../controllers/authController";
 import { verifyToken, authorizeRoles, AuthRequest } from "../middleware/authMiddleware";
 
 const router = Router();
@@ -7,7 +7,12 @@ const router = Router();
 // Public routes
 router.post("/register", register);
 router.post("/login", login);
+router.post("/refresh", refresh); // exchanges the refresh cookie for a new access token
 router.post("/logout", logout);
+
+// Session management: list every logged-in device, or log out all devices but this one
+router.get("/sessions", verifyToken, listSessions);
+router.post("/sessions/logout-others", verifyToken, logoutOtherSessions);
 
 // Example 1: Protected route for any logged-in user
 router.get("/profile", verifyToken, (req: AuthRequest, res: Response) => {
